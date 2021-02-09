@@ -4,12 +4,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
+import org.rocksdb.RocksIterator;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.SerializationUtils;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.Arrays;
 import java.util.Optional;
 
 /**
@@ -20,11 +22,12 @@ import java.util.Optional;
 public class RocksDBRepositoryForByte {
     private String BASE_DIR = null;
     private String FILE_NAME = null;
+    private long info_count = 0;
 
     File baseDir;
     RocksDB db;
 
-    public RocksDBRepositoryForByte(String baseDirStr, String fileNameStr){
+    public RocksDBRepositoryForByte(String baseDirStr, String fileNameStr) {
         RocksDB.loadLibrary();
         final Options options = new Options();
         options.setCreateIfMissing(true);
@@ -38,7 +41,7 @@ public class RocksDBRepositoryForByte {
 //            BASE_DIR = pro.getProperty("rocks_db_base_dir");
 //            FILE_NAME = pro.getProperty("rocks_db_file_name");
 //        }
-        if (BASE_DIR == null || FILE_NAME == null){
+        if (BASE_DIR == null || FILE_NAME == null) {
             this.BASE_DIR = baseDirStr;
             this.FILE_NAME = fileNameStr;
         }
@@ -99,7 +102,7 @@ public class RocksDBRepositoryForByte {
         return true;
     }
 
-//    @Override
+    //    @Override
     public boolean saveByte(String key, byte[] value) {
         try {
             db.put(key.getBytes(), value);
@@ -110,12 +113,12 @@ public class RocksDBRepositoryForByte {
         return true;
     }
 
-//    @Override
+    //    @Override
     public synchronized Optional<Object> find(String key) {
         return Optional.empty();
     }
 
-//    @Override
+    //    @Override
     public byte[] findByte(String key) {
         byte[] bytes = new byte[0];
         try {
@@ -126,7 +129,7 @@ public class RocksDBRepositoryForByte {
         return bytes;
     }
 
-//    @Override
+    //    @Override
     public synchronized boolean delete(String key) {
         log.info("deleting key '{}'", key);
 
@@ -140,4 +143,42 @@ public class RocksDBRepositoryForByte {
 
         return true;
     }
+
+    public synchronized void iterator() {
+        try (final RocksIterator iterator = db.newIterator()) {
+            for (iterator.seekToLast(); iterator.isValid(); iterator.prev()) {
+                info_count++;
+                System.out.println("===========>" + Arrays.toString(iterator.value()));
+            }
+        }
+    }
+
+    public long getTotalCount() {
+        if (info_count == 0) {
+            iterator();
+        }
+        return info_count;
+    }
+
+    public long getEstimatedNumOfKeys() {
+//        Options options;
+//        options.statistics = db.CreateDBStatistics();
+        try {
+            long numKeys = db.getLongProperty("rocksdb.estimate-num-keys");
+            System.out.println("numKeys===============>" + numKeys);
+            if (numKeys < 0L) {
+                System.out.println("error=============");
+//                log.error("Get long property '{}' returned negative value", ROCKSDB_NUM_KEYS_PROPERTY_NAME);
+//                throw new KeyValueDBException(new NumberFormatException("getLongProperty for '"
+//                        + ROCKSDB_NUM_KEYS_PROPERTY_NAME + "' returned negative value: " + numKeys));
+            }
+            return numKeys;
+        } catch (RocksDBException ex) {
+            System.out.println("error2-==--=====================");
+//            log.error("Failed to read '{}' property due to", ROCKSDB_NUM_KEYS_PROPERTY_NAME, ex);
+//            throw new KeyValueDBException(ex);
+        }
+        return 0;
+    }
+
 }
